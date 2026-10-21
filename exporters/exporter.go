@@ -326,6 +326,15 @@ func NewExporter(name, prefix, cloud string, disabledMetrics []string, endpointT
 		uuidGenFunc = uuid.GenerateUUID
 	}
 
+	// In multi-cloud mode a single global --project-id cannot represent a
+	// different project per cloud. When it is not set, fall back to the project
+	// configured in this cloud's own clouds.yaml entry so each cloud is scoped
+	// to its own project (required for non-admin, self-scoped metrics).
+	if tenantID == "" && config.AuthInfo != nil && config.AuthInfo.ProjectID != "" {
+		tenantID = config.AuthInfo.ProjectID
+		logger.Info("Defaulting project ID from cloud config", "cloud", cloud, "project_id", tenantID)
+	}
+
 	exporterConfig := ExporterConfig{
 		ClientV2:                 clientV2,
 		ServiceName:              name,
