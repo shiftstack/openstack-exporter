@@ -203,6 +203,31 @@ func NewServiceClientV2(service string, opts *clientconfigv2.ClientOpts, transpo
 	return nil, fmt.Errorf("unable to create a service client for %s", service)
 }
 
+// resolveScopedProjectID returns the ID of the project the provider client's
+// token is scoped to. It reads the scope from the cached authentication result,
+// so it works for any authenticated user without admin rights and makes no
+// additional API call.
+func resolveScopedProjectID(pClient *gophercloudv2.ProviderClient) (string, error) {
+	authResult := pClient.GetAuthResult()
+	if authResult == nil {
+		return "", errors.New("no auth result available on provider client")
+	}
+
+	createResult, ok := authResult.(tokens.CreateResult)
+	if !ok {
+		return "", fmt.Errorf("unexpected auth result type %T", authResult)
+	}
+
+	project, err := createResult.ExtractProject()
+	if err != nil {
+		return "", err
+	}
+	if project == nil {
+		return "", nil
+	}
+	return project.ID, nil
+}
+
 // GetProjects returns all projects for the configured domain or just the configured project.
 func GetProjects(ctx context.Context, exporter *BaseOpenStackExporter) ([]projects.Project, error) {
 	c, err := newIdentityV3ClientV2FromExporter(exporter, exporter.ServiceName)

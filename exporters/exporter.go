@@ -353,10 +353,23 @@ func NewExporter(name, prefix, cloud string, disabledMetrics []string, endpointT
 	// In multi-cloud mode a single global --project-id cannot represent a
 	// different project per cloud. When it is not set, fall back to the project
 	// configured in this cloud's own clouds.yaml entry so each cloud is scoped
-	// to its own project (required for non-admin, self-scoped metrics).
-	if tenantID == "" && config.AuthInfo != nil && config.AuthInfo.ProjectID != "" {
-		tenantID = config.AuthInfo.ProjectID
-		logger.Info("Defaulting project ID from cloud config", "cloud", cloud, "project_id", tenantID)
+	// to its own project (required for non-admin, self-scoped metrics). Prefer an
+	// explicit project_id; if only project_name is given, resolve the ID from the
+	// token's scoped project (works without admin).
+	if tenantID == "" && config.AuthInfo != nil {
+		switch {
+		case config.AuthInfo.ProjectID != "":
+			tenantID = config.AuthInfo.ProjectID
+		case config.AuthInfo.ProjectName != "":
+			if id, resolveErr := resolveScopedProjectID(clientV2.ProviderClient); resolveErr != nil {
+				logger.Warn("failed to resolve project name to ID from token", "cloud", cloud, "project_name", config.AuthInfo.ProjectName, "err", resolveErr)
+			} else {
+				tenantID = id
+			}
+		}
+		if tenantID != "" {
+			logger.Info("Defaulting project ID from cloud config", "cloud", cloud, "project_id", tenantID)
+		}
 	}
 
 	exporterConfig := ExporterConfig{
