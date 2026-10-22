@@ -219,7 +219,14 @@ func getEnabledServicesFromStates(serviceStates map[string]serviceState) []strin
 
 func autodetectServices(cloud string, logger *slog.Logger) ([]string, error) {
 	opts := &clientconfigv2.ClientOpts{Cloud: cloud}
-	services, err := exporters.AutodetectServicesFromCatalog(opts, nil, *endpointType)
+	// Build the transport from the cloud's TLS settings so autodetection honors
+	// verify/cacert/client-cert just like the exporters do; otherwise a cloud
+	// with verify=false or a custom CA fails during catalog discovery.
+	transport, err := exporters.NewTransportForCloud(opts, logger)
+	if err != nil {
+		return nil, err
+	}
+	services, err := exporters.AutodetectServicesFromCatalog(opts, transport, *endpointType)
 	if err != nil {
 		return nil, err
 	}

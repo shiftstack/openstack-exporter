@@ -257,18 +257,12 @@ func pathOrContents(poc string) ([]byte, bool, error) {
 	return []byte(poc), false, nil
 }
 
-func NewExporter(name, prefix, cloud string, disabledMetrics []string, endpointType string, collectTime bool, disableSlowMetrics bool, disableDeprecatedMetrics bool, disableCinderAgentUUID bool, domainID string, tenantID string, novaMetadataMapping *utils.LabelMappingFlag, dnsConcurrentCount int, uuidGenFunc func() (string, error), logger *slog.Logger) (OpenStackExporter, error) {
-	var exporter OpenStackExporter
-	var err error
+// newTransportFromConfig builds an HTTP transport that honors the cloud's TLS
+// settings (verify, CA cert, client cert) and OS_DEBUG logging. It returns nil
+// when no custom transport is needed, in which case the default client is used.
+func newTransportFromConfig(config *clientconfigv2.Cloud, logger *slog.Logger) (http.RoundTripper, error) {
 	var transport http.RoundTripper
 	var tlsConfig tls.Config
-
-	optsv2 := clientconfigv2.ClientOpts{Cloud: cloud}
-
-	config, err := clientconfigv2.GetCloudFromYAML(&optsv2)
-	if err != nil {
-		return nil, err
-	}
 
 	var configureTransport = false
 	if !*config.Verify {
@@ -315,6 +309,36 @@ func NewExporter(name, prefix, cloud string, disabledMetrics []string, endpointT
 			Rt:     transport,
 			Logger: &clientutilsv2.DefaultLogger{},
 		}
+	}
+
+	return transport, nil
+}
+
+// NewTransportForCloud parses the given cloud's config and builds an HTTP
+// transport honoring its TLS settings. It is used by both the exporters and the
+// single-cloud service autodetection so TLS options (verify, cacert, client
+// cert) are respected consistently across both paths.
+func NewTransportForCloud(opts *clientconfigv2.ClientOpts, logger *slog.Logger) (http.RoundTripper, error) {
+	config, err := clientconfigv2.GetCloudFromYAML(opts)
+	if err != nil {
+		return nil, err
+	}
+	return newTransportFromConfig(config, logger)
+}
+
+func NewExporter(name, prefix, cloud string, disabledMetrics []string, endpointType string, collectTime bool, disableSlowMetrics bool, disableDeprecatedMetrics bool, disableCinderAgentUUID bool, domainID string, tenantID string, novaMetadataMapping *utils.LabelMappingFlag, dnsConcurrentCount int, uuidGenFunc func() (string, error), logger *slog.Logger) (OpenStackExporter, error) {
+	var exporter OpenStackExporter
+
+	optsv2 := clientconfigv2.ClientOpts{Cloud: cloud}
+
+	config, err := clientconfigv2.GetCloudFromYAML(&optsv2)
+	if err != nil {
+		return nil, err
+	}
+
+	transport, err := newTransportFromConfig(config, logger)
+	if err != nil {
+		return nil, err
 	}
 
 	clientV2, err := NewServiceClientV2(name, &optsv2, transport, endpointType)
