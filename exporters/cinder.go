@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/quotasets"
@@ -58,7 +59,7 @@ var defaultCinderMetrics = []Metric{
 	{Name: "backup_gb", Labels: []string{"id", "name", "status", "tenant_id", "volume_id",
 		"snapshot_id", "incremental"}, Fn: nil},
 	{Name: "agent_state", Labels: []string{"uuid", "hostname", "service", "adminState", "zone", "disabledReason"}, Fn: ListCinderAgentState},
-	{Name: "volume_gb", Labels: []string{"id", "name", "status", "availability_zone", "bootable", "tenant_id", "user_id", "volume_type", "server_id"}, Fn: nil},
+	{Name: "volume_gb", Labels: []string{"id", "name", "status", "availability_zone", "bootable", "tenant_id", "user_id", "volume_type", "server_id", "created"}, Fn: nil},
 	{Name: "volume_status", Labels: []string{"id", "name", "status", "bootable", "tenant_id", "size", "volume_type", "server_id"}, Fn: ListVolumesStatus, Slow: false, DeprecatedVersion: "1.4"},
 	{Name: "volume_status_counter", Labels: []string{"status"}, Fn: nil},
 	{Name: "pool_capacity_free_gb", Labels: []string{"name", "volume_backend_name", "vendor_name"}, Fn: ListCinderPoolCapacityFree},
@@ -155,7 +156,7 @@ func ListVolumes(ctx context.Context, exporter *BaseOpenStackExporter, ch chan<-
 		// Volume_gb metrics
 		ch <- prometheus.MustNewConstMetric(exporter.Metrics["volume_gb"].Metric,
 			prometheus.GaugeValue, float64(volume.Size), volume.ID, volume.Name,
-			volume.Status, volume.AvailabilityZone, volume.Bootable, volume.TenantID, volume.UserID, volume.VolumeType, serverID)
+			volume.Status, volume.AvailabilityZone, volume.Bootable, volume.TenantID, volume.UserID, volume.VolumeType, serverID, volume.CreatedAt.Format(time.RFC3339))
 
 		// collect statuses
 		volume_status_counter[volume.Status]++

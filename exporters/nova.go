@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/aggregates"
@@ -61,7 +62,7 @@ type NovaExporter struct {
 
 var (
 	defaultNovaServerStatusLabels = []string{"id", "status", "name", "tenant_id", "user_id", "address_ipv4",
-		"address_ipv6", "host_id", "hypervisor_hostname", "uuid", "availability_zone", "flavor_id", "instance_libvirt"}
+		"address_ipv6", "host_id", "hypervisor_hostname", "uuid", "availability_zone", "flavor_id", "instance_libvirt", "created"}
 
 	defaultNovaHypervisorLabels = []string{"hostname", "availability_zone", "aggregates"}
 	defaultNovaRunningVMLabels  = []string{"hostname", "availability_zone", "aggregates", "tenant_id"}
@@ -418,13 +419,13 @@ func ListAllServers(ctx context.Context, exporter *BaseOpenStackExporter, ch cha
 					return []string{
 						server.ID, server.Status, server.Name, server.TenantID,
 						server.UserID, server.AccessIPv4, server.AccessIPv6, server.HostID, server.HypervisorHostname, server.ID,
-						server.AvailabilityZone, fmt.Sprintf("%v", server.Flavor["id"]), server.InstanceName,
+						server.AvailabilityZone, fmt.Sprintf("%v", server.Flavor["id"]), server.InstanceName, server.Created.Format(time.RFC3339),
 					}
 				}
 				return []string{
 					server.ID, server.Status, server.Name, server.TenantID,
 					server.UserID, server.AccessIPv4, server.AccessIPv6, server.HostID, server.HypervisorHostname, server.ID,
-					server.AvailabilityZone, flavorIDMapper.Search(server.Flavor["original_name"]), server.InstanceName,
+					server.AvailabilityZone, flavorIDMapper.Search(server.Flavor["original_name"]), server.InstanceName, server.Created.Format(time.RFC3339),
 				}
 			}()
 			metadataValues := exporter.NovaMetadataMapping.Extract(server.Metadata)
