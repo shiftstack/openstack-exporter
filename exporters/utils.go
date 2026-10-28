@@ -228,6 +228,51 @@ func resolveScopedProjectID(pClient *gophercloudv2.ProviderClient) (string, erro
 	return project.ID, nil
 }
 
+// EffectiveTenantID returns the project the collectors should scope to. When a
+// project is configured (TenantID != "") it first probes whether the
+// credentials can enumerate all projects (i.e. are admin); if so it returns ""
+// so the exporter queries all tenants, otherwise it falls back to the configured
+// single project. The admin probe runs once and is cached for the exporter's
+// lifetime.
+func (exporter *BaseOpenStackExporter) EffectiveTenantID(ctx context.Context) string {
+	if exporter.TenantID == "" {
+		return ""
+	}
+
+	// An explicitly configured project (--project-id) is a hard scope and is
+	// never widened to all tenants, even for admin credentials.
+	if exporter.TenantIDExplicit {
+		return exporter.TenantID
+	}
+
+	exporter.allTenantsMu.Lock()
+	defer exporter.allTenantsMu.Unlock()
+	if exporter.allTenants == nil {
+		all := exporter.canListAllProjects(ctx)
+		exporter.allTenants = &all
+		exporter.logger.Info("resolved tenant query scope",
+			"all_tenants", all, "configured_project_id", exporter.TenantID)
+	}
+	if *exporter.allTenants {
+		return ""
+	}
+	return exporter.TenantID
+}
+
+// canListAllProjects reports whether the credentials can list all projects for
+// the configured domain, which is the signal that the exporter may run in
+// all-tenants (admin) mode.
+func (exporter *BaseOpenStackExporter) canListAllProjects(ctx context.Context) bool {
+	c, err := newIdentityV3ClientV2FromExporter(exporter, exporter.ServiceName)
+	if err != nil {
+		return false
+	}
+	if _, err := projects.List(c, projects.ListOpts{DomainID: exporter.DomainID}).AllPages(ctx); err != nil {
+		return false
+	}
+	return true
+}
+
 // GetProjects returns all projects for the configured domain or just the configured project.
 func GetProjects(ctx context.Context, exporter *BaseOpenStackExporter) ([]projects.Project, error) {
 	c, err := newIdentityV3ClientV2FromExporter(exporter, exporter.ServiceName)
@@ -235,9 +280,9 @@ func GetProjects(ctx context.Context, exporter *BaseOpenStackExporter) ([]projec
 		return nil, err
 	}
 
-	if exporter.TenantID != "" {
-		exporter.logger.Debug("retrieving single project based on configured project ID", "project_id", exporter.TenantID)
-		project, err := projects.Get(ctx, c, exporter.TenantID).Extract()
+	if tenantID := exporter.EffectiveTenantID(ctx); tenantID != "" {
+		exporter.logger.Debug("retrieving single project based on configured project ID", "project_id", tenantID)
+		project, err := projects.Get(ctx, c, tenantID).Extract()
 		if err != nil {
 			return nil, err
 		}

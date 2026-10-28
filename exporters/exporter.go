@@ -76,6 +76,7 @@ type ExporterConfig struct {
 	DisableCinderAgentUUID   bool
 	DomainID                 string
 	TenantID                 string
+	TenantIDExplicit         bool
 	NovaMetadataMapping      *utils.LabelMappingFlag
 	DnsConcurrentCount       int
 }
@@ -85,6 +86,11 @@ type BaseOpenStackExporter struct {
 	Name    string
 	Metrics map[string]*PrometheusMetric
 	logger  *slog.Logger
+
+	// allTenants caches whether the credentials can enumerate all projects
+	// (admin). It is resolved once, lazily, by EffectiveTenantID.
+	allTenants   *bool
+	allTenantsMu sync.Mutex
 }
 
 type ListFunc func(ctx context.Context, exporter *BaseOpenStackExporter, ch chan<- prometheus.Metric) error
@@ -329,6 +335,11 @@ func NewTransportForCloud(opts *clientconfigv2.ClientOpts, logger *slog.Logger) 
 func NewExporter(name, prefix, cloud string, disabledMetrics []string, endpointType string, collectTime bool, disableSlowMetrics bool, disableDeprecatedMetrics bool, disableCinderAgentUUID bool, domainID string, tenantID string, novaMetadataMapping *utils.LabelMappingFlag, dnsConcurrentCount int, uuidGenFunc func() (string, error), logger *slog.Logger) (OpenStackExporter, error) {
 	var exporter OpenStackExporter
 
+	// An explicit --project-id is a hard scope and is always honored. A project
+	// derived from clouds.yaml below is only a default, so it may be widened to
+	// all tenants when the credentials are admin (see EffectiveTenantID).
+	tenantIDExplicit := tenantID != ""
+
 	optsv2 := clientconfigv2.ClientOpts{Cloud: cloud}
 
 	config, err := clientconfigv2.GetCloudFromYAML(&optsv2)
@@ -384,6 +395,7 @@ func NewExporter(name, prefix, cloud string, disabledMetrics []string, endpointT
 		DisableCinderAgentUUID:   disableCinderAgentUUID,
 		DomainID:                 domainID,
 		TenantID:                 tenantID,
+		TenantIDExplicit:         tenantIDExplicit,
 		NovaMetadataMapping:      novaMetadataMapping,
 		DnsConcurrentCount:       dnsConcurrentCount,
 	}

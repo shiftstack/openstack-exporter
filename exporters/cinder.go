@@ -96,7 +96,7 @@ func ListVolumesStatus(ctx context.Context, exporter *BaseOpenStackExporter, ch 
 	type VolumeWithExt = volumes.Volume
 
 	var allVolumes []VolumeWithExt
-	volumeListOption := getVolumeListOptions(exporter.TenantID)
+	volumeListOption := getVolumeListOptions(exporter.EffectiveTenantID(ctx))
 
 	allPagesVolumes, err := volumes.List(exporter.ClientV2, volumeListOption).AllPages(ctx)
 	if err != nil {
@@ -127,7 +127,7 @@ func ListVolumes(ctx context.Context, exporter *BaseOpenStackExporter, ch chan<-
 	type VolumeWithExt = volumes.Volume
 
 	var allVolumes []VolumeWithExt
-	volumeListOption := getVolumeListOptions(exporter.TenantID)
+	volumeListOption := getVolumeListOptions(exporter.EffectiveTenantID(ctx))
 
 	allPagesVolumes, err := volumes.List(exporter.ClientV2, volumeListOption).AllPages(ctx)
 	if err != nil {
@@ -176,7 +176,7 @@ func ListVolumes(ctx context.Context, exporter *BaseOpenStackExporter, ch chan<-
 
 func ListSnapshots(ctx context.Context, exporter *BaseOpenStackExporter, ch chan<- prometheus.Metric) error {
 	var allSnapshots []snapshots.Snapshot
-	snapshotListOption := getSnapshotListOptions(exporter.TenantID)
+	snapshotListOption := getSnapshotListOptions(exporter.EffectiveTenantID(ctx))
 
 	// The detail listing is required to get the snapshot project ID.
 	allPagesSnapshot, err := snapshots.ListDetail(exporter.ClientV2, snapshotListOption).AllPages(ctx)
@@ -207,7 +207,8 @@ func ListBackups(ctx context.Context, exporter *BaseOpenStackExporter, ch chan<-
 	// The detail listing is required to get size, status and project ID of
 	// each backup. ListDetailOpts cannot filter on a project, so when the
 	// exporter is scoped to a single tenant the result is filtered below.
-	listOpts := backups.ListDetailOpts{AllTenants: exporter.TenantID == ""}
+	tenantID := exporter.EffectiveTenantID(ctx)
+	listOpts := backups.ListDetailOpts{AllTenants: tenantID == ""}
 
 	// The project ID attribute is only returned with microversion 3.18 or
 	// later; a copy of the client is used to not affect other metrics.
@@ -226,7 +227,7 @@ func ListBackups(ctx context.Context, exporter *BaseOpenStackExporter, ch chan<-
 
 	count := 0
 	for _, backup := range allBackups {
-		if exporter.TenantID != "" && backup.ProjectID != exporter.TenantID {
+		if tenantID != "" && backup.ProjectID != tenantID {
 			continue
 		}
 		count++

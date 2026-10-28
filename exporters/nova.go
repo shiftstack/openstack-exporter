@@ -355,7 +355,7 @@ func ListAllServers(ctx context.Context, exporter *BaseOpenStackExporter, ch cha
 
 	var allServers []ServerWithExt
 	var flavorIDMapper flavorIDMapper
-	serverListOption := getServerListOptions(exporter.TenantID)
+	serverListOption := getServerListOptions(exporter.EffectiveTenantID(ctx))
 
 	allPagesServers, err := servers.List(exporter.ClientV2, serverListOption).AllPages(ctx)
 	if err != nil {
