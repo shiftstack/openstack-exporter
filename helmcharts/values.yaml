@@ -20,6 +20,9 @@ serviceMonitor:
   interval: 1m
   scrapeTimeout: 30s
 
+prometheusRule:
+  enabled: true
+
 multicloud:
   # Enable multicloud (i.e. /probe?... targets)
   # Doc: https://github.com/openstack-exporter/openstack-exporter#description
@@ -54,6 +57,13 @@ multicloud:
 # Add extra labels
 #commonLabels:
 #  prometheus.io/monitor: "true"
+
+# Add annotations to the exporter service.
+service:
+  annotations:
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "9180"
+    # prometheus.io/scrape_slow: "true"
 
 # Add extra volumes mounted to openstack-exporter deployment
 # Useful for mounting CA Certificates

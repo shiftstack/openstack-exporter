@@ -1,3 +1,4 @@
+{{- if .Values.prometheusRule.enabled }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -208,3 +209,4 @@ spec:
           The cloud capacity is currently at `{{`{{$value}}`}}` which means there is a risk of running
           out of capacity due to the timeline required to add new nodes.  Please ensure that adequate
           amount of infrastructure is assigned to this deployment to prevent this.
+{{- end }}

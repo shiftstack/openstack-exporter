@@ -6,6 +6,10 @@ metadata:
   name: {{ include "openstack-exporter.fullname" . }}
   labels:
 {{- include "openstack-exporter.labels" . | indent 4 }}
+{{- if .Values.service.annotations }}
+  annotations:
+{{ toYaml .Values.service.annotations | indent 4 }}
+{{- end }}
 spec:
   clusterIP: None
   ports:
